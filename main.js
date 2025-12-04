@@ -1,10 +1,9 @@
 import axios from 'axios';
 import fs from 'fs';
-import path from 'path';
 import ms from 'ms';
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
-import { compare, compareVersions, validate } from 'compare-versions';
+import { compareVersions, validate } from 'compare-versions';
 import Logger from './logger.js';
 import pkg from './package.json' with { type: 'json' };
 
@@ -39,7 +38,8 @@ const loadRepoLines = (file) => {
     const lines = 
         fs.readFileSync(file, 'utf8')
             .split('\n')
-            .map(line => line.trim());
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
 
     return lines;
 }
