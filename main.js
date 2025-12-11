@@ -23,6 +23,7 @@ const {
 } = process.env;
 
 axios.defaults.headers.common['User-Agent'] = `${pkg.name}/${pkg.version}`;
+axios.defaults.headers.common['Authorization'] = `Bearer ${GH_API_KEY}`;
 
 const adapter = new JSONFile(DB_FILE);
 const db = new Low(adapter, { releases: {} });
@@ -31,6 +32,11 @@ const log = new Logger(pkg.name, DEBUG === 'true');
 const initDb = async () => {
     await db.read();
     db.data = db.data || { releases: [] }
+    await db.write();
+}
+
+const updateVersion = async (repo, version) => {
+    db.data.releases[repo] = version;
     await db.write();
 }
 
@@ -53,12 +59,7 @@ const parseLine = (line) => {
 }
 
 const fetchReleases = async (repo) => {
-    const releases = (await axios(`https://api.github.com/repos/${repo}/releases`, {
-        headers: {
-            "Authorization": `Bearer ${GH_API_KEY}`
-        }
-    })).data;
-
+    const releases = (await axios(`https://api.github.com/repos/${repo}/releases`)).data;
     return releases;
 }
 
@@ -71,6 +72,11 @@ const sendNtfy = async (title, tag, message) => {
             "Authorization": NTFY_AUTH ? `Bearer ${NTFY_AUTH}` : ''
         }
     });
+}
+
+const sanitizeVersion = version => {
+    const match = version.match(/(\d+(?:\.\d+)+)/);
+    return match ? `v${match[0]}` : '';
 }
 
 const processRepoLine = async (line) => {
@@ -90,38 +96,35 @@ const processRepoLine = async (line) => {
 
     if (!latestRelease) return log.info(`No release found for ${repo} - beta: ${beta}`);
     
-    const id = latestRelease.id;
-    const tag = latestRelease.tag_name;
+    const currentVersion = sanitizeVersion(latestRelease.tag_name);
     const name = latestRelease.name;
     const publishedAt = latestRelease.published_at;
     const url = latestRelease.html_url;
     const body = latestRelease.body || "No release notes.";
     
-    const lastReleaseTag = db.data.releases[id];
-    if (!lastReleaseTag) {
-        log.debug(`No previous release found for ${id} in database. creating entry and skipping notification`);
+    const lastVersion = db.data.releases[repo];
+    if (!lastVersion) {
+        log.debug(`No previous release found for ${repo} in database. creating entry and skipping notification`);
         
-        db.data.releases[id] = tag;
-        await db.write();
+        await updateVersion(repo, currentVersion);
 
         return;
     }
 
-    if (!validate(lastReleaseTag) || !validate(tag)) return log.error(`Unable to parse versions. ${lastReleaseTag} - last release ${tag} - current release`);
+    if (!validate(lastVersion) || !validate(currentVersion)) return log.error(`Unable to parse versions for ${repo}. ${lastVersion} - last version ${currentVersion} - current version`);
 
-    const compareResult = compareVersions(lastReleaseTag, tag);
+    const compareResult = compareVersions(lastVersion, currentVersion);
     // -1 indicates the "v2" release is greater than "v1"
     if (compareResult === -1) {
-        log.info(`New release found for ${repo} - id: ${id}`);
+        log.info(`New release found for ${repo} - repo: ${repo}`);
 
-        db.data.releases[id] = tag;
-        await db.write();
+        await updateVersion(repo, currentVersion)
     
         const title = 'New version available!';
         const message = [
             `**${name}**`,
             `Repo: [${repo}](${url})`,
-            `Version: ${tag}`,
+            `Version: ${currentVersion}`,
             `Published: ${new Date(publishedAt).toLocaleString()}`,
             '',
             body
@@ -129,12 +132,11 @@ const processRepoLine = async (line) => {
     
         await sendNtfy(title, 'loudspeaker', message);
     } else if (compareResult === 1) {
-        log.info(`Version downgrade on remote repository ${id} from ${lastReleaseTag} to ${tag}. Updating local database to reflect`);
+        log.info(`Version downgrade on remote repository ${repo} from ${lastVersion} to ${currentVersion}. Updating local database to reflect`);
         
-        db.data.releases[id] = tag;
-        await db.write();
+        await updateVersion(repo, currentVersion)
     } else {
-        return log.debug(`Found no increase in version from ${lastReleaseTag} to ${tag}`);
+        return log.debug(`Found no increase in version from ${lastVersion} to ${currentVersion} for ${repo}`);
     }
 }
 

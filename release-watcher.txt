@@ -1,2 +1,3 @@
 Unpackerr/unpackerr
 FlareSolverr/FlareSolverr
+sabnzbd/sabnzbd
