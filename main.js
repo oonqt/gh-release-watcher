@@ -5,6 +5,7 @@ import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
 import { compareVersions, validate } from 'compare-versions';
 import Logger from './logger.js';
+import { emojify } from 'node-emoji';
 import pkg from './package.json' with { type: 'json' };
 
 if (process.env.NODE_ENV === 'development') {
@@ -64,7 +65,7 @@ const fetchReleases = async (repo) => {
 }
 
 const sendNtfy = async (title, tag, message) => {
-    await axios.post(NTFY_URL, message, {
+    await axios.post(NTFY_URL, emojify(message), {
         headers: {
             "Title": title,
             "Tags": tag,
@@ -85,14 +86,15 @@ const processRepoLine = async (line) => {
     log.debug(`Processing ${repo} - beta: ${beta}`);
 
     const releases = await fetchReleases(repo);
+    
+    let latestRelease = releases.find(release => {
+        if (release.draft) return false;
+        if (!beta && release.prerelease) return false;
 
-    const latestRelease = 
-        releases.find(release => {
-            if (release.draft) return false;
-            if (!beta && release.beta) return false;
+        return true;
+    });
 
-            return true;
-        });
+    if (!latestRelease) latestRelease = releases.find(release => !release.draft); // If no release found, fall back to allowing beta releases in.....
 
     if (!latestRelease) return log.info(`No release found for ${repo} - beta: ${beta}`);
     

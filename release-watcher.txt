@@ -1,3 +1,5 @@
 Unpackerr/unpackerr
 FlareSolverr/FlareSolverr
 sabnzbd/sabnzbd
+kanbn/kan
+MediaBrowser/Emby.Releases
