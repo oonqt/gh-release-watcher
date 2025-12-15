@@ -60,8 +60,18 @@ const parseLine = (line) => {
 }
 
 const fetchReleases = async (repo) => {
-    const releases = (await axios(`https://api.github.com/repos/${repo}/releases`)).data;
-    return releases;
+    try {
+        const releases = (await axios(`https://api.github.com/repos/${repo}/releases`)).data;
+        return releases;
+    } catch (err) {
+        if (err.response.status === 404) {
+            log.error(`Repository not found: ${repo}`);
+            sendNtfy('Error', 'exclamation', `Repository not found: ${repo}`);
+            return;
+        }
+
+        throw err;
+    }
 }
 
 const sendNtfy = async (title, tag, message) => {
