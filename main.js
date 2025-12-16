@@ -52,6 +52,8 @@ const loadRepoLines = (file) => {
 }
 
 const parseLine = (line) => {
+    if (line.startsWith('#')) return { repo: null, beta: false };
+
     const parts = line.split(':').map(part => part.trim());
     const repo = parts[0];
     const beta = (parts[1] || '').toLowerCase() === 'beta';
@@ -92,6 +94,8 @@ const sanitizeVersion = version => {
 
 const processRepoLine = async (line) => {
     const { repo, beta } = parseLine(line);
+
+    if (!repo) return log.debug(`Skipping commented repo line: ${line}`);
 
     log.debug(`Processing ${repo} - beta: ${beta}`);
 
