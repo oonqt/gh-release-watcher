@@ -4,3 +4,4 @@ sabnzbd/sabnzbd
 kanbn/kan
 MediaBrowser/Emby.Releases
 # Test File
+alexjustesen/speedtest-tracker

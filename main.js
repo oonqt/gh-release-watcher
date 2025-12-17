@@ -77,7 +77,7 @@ const fetchReleases = async (repo) => {
 }
 
 const sendNtfy = async (title, tag, message) => {
-    await axios.post(NTFY_URL, emojify(message), {
+    await axios.post(NTFY_URL, githubMarkdown(message), {
         headers: {
             "Title": title,
             "Tags": tag,
@@ -90,6 +90,31 @@ const sendNtfy = async (title, tag, message) => {
 const sanitizeVersion = version => {
     const match = version.match(/(\d+(?:\.\d+)+)/);
     return match ? `v${match[0]}` : '';
+}
+
+const githubMarkdown = (text, repo) => {
+
+    // Convert to Github issue/pull requests to #links
+    text = text.replace(
+        /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(issues|pull)\/(\d+)/g,
+        (_, owner, repo, type, num) => `[#${num}](https://github.com/${owner}/${repo}/${type}/${num})`
+    );
+    // Convert @user mentions to Github user links
+    text = text.replace(
+        /(^|\s)@([a-zA-Z0-9-]+)\b/g,
+        (_, prefix, username) => `[${prefix}@${username}](https://github.com/${username})`
+    );    
+
+    // Convert compare links
+    text = text.replace(
+        /https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/compare\/(v?\d+(?:\.\d+)+)\.\.\.(v?\d+(?:\.\d+)+)/g,
+        (match, repo, fromVer, toVer) => `[${fromVer}...${toVer}](${match})`
+    );
+
+    // Convert emoji markdown :emoji:
+    text = emojify(text);
+
+    return text;
 }
 
 const processRepoLine = async (line) => {

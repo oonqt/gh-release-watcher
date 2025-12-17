@@ -4,6 +4,7 @@
     "FlareSolverr/FlareSolverr": "v3.4.6",
     "sabnzbd/sabnzbd": "v4.5.5",
     "kanbn/kan": "v0.5.1",
-    "MediaBrowser/Emby.Releases": "v4.9.1.90"
+    "MediaBrowser/Emby.Releases": "v4.9.1.90",
+    "alexjustesen/speedtest-tracker": "v1.13.0"
   }
 }
