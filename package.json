@@ -1,6 +1,6 @@
 {
   "name": "gh-release-watcher",
-  "version": "1.3.3",
+  "version": "1.4.3",
   "description": "",
   "main": "main.js",
   "scripts": {
