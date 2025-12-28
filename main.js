@@ -117,6 +117,17 @@ const githubMarkdown = (text, repo) => {
     return text;
 }
 
+const trunkateReleaseBody = (body, url, maxBytes) => {
+    if (Buffer.byteLength(body, 'utf8') < maxBytes) {
+        return body;
+    } else {
+        log.debug(`Truncating release notes for ${url}`);
+        
+        return `Full release notes: [${url}](${url})`;
+    }
+}
+log.debug()
+
 const processRepoLine = async (line) => {
     const { repo, beta } = parseLine(line);
 
@@ -141,7 +152,7 @@ const processRepoLine = async (line) => {
     const name = latestRelease.name;
     const publishedAt = latestRelease.published_at;
     const url = latestRelease.html_url;
-    const body = latestRelease.body || "No release notes.";
+    const releaseBody = trunkateReleaseBody(latestRelease.body || "No release notes.", url, 4000);
     
     const lastVersion = db.data.releases[repo];
     if (!lastVersion) {
@@ -168,7 +179,7 @@ const processRepoLine = async (line) => {
             `Version: ${currentVersion}`,
             `Published: ${new Date(publishedAt).toLocaleString()}`,
             '',
-            body
+            releaseBody
         ].join('\n');
     
         await sendNtfy(title, 'loudspeaker', message);
