@@ -20,8 +20,10 @@ const {
     CHECK_INTERVAL,
     REPO_FILE,
     DB_FILE,
-    GH_API_KEY
+    GH_API_KEY,
 } = process.env;
+
+const MAX_MESSAGE_BYTES = 4000;
 
 axios.defaults.headers.common['User-Agent'] = `${pkg.name}/${pkg.version}`;
 axios.defaults.headers.common['Authorization'] = `Bearer ${GH_API_KEY}`;
@@ -42,7 +44,7 @@ const updateVersion = async (repo, version) => {
 }
 
 const loadRepoLines = (file) => {
-    const lines = 
+    const lines =
         fs.readFileSync(file, 'utf8')
             .split('\n')
             .map(line => line.trim())
@@ -93,7 +95,6 @@ const sanitizeVersion = version => {
 }
 
 const githubMarkdown = (text, repo) => {
-
     // Convert to Github issue/pull requests to #links
     text = text.replace(
         /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(issues|pull)\/(\d+)/g,
@@ -103,7 +104,7 @@ const githubMarkdown = (text, repo) => {
     text = text.replace(
         /(^|\s)@([a-zA-Z0-9-]+)\b/g,
         (_, prefix, username) => `[${prefix}@${username}](https://github.com/${username})`
-    );    
+    );
 
     // Convert compare links
     text = text.replace(
@@ -118,11 +119,11 @@ const githubMarkdown = (text, repo) => {
 }
 
 const trunkateReleaseBody = (body, url, maxBytes) => {
-    if (Buffer.byteLength(body, 'utf8') < maxBytes) {
+    if (Buffer.byteLength(body, 'utf8') <= maxBytes) {
         return body;
     } else {
         log.debug(`Truncating release notes for ${url}`);
-        
+
         return `Full release notes: [${url}](${url})`;
     }
 }
@@ -135,7 +136,7 @@ const processRepoLine = async (line) => {
     log.debug(`Processing ${repo} - beta: ${beta}`);
 
     const releases = await fetchReleases(repo);
-    
+
     let latestRelease = releases.find(release => {
         if (release.draft) return false;
         if (!beta && release.prerelease) return false;
@@ -146,17 +147,17 @@ const processRepoLine = async (line) => {
     if (!latestRelease) latestRelease = releases.find(release => !release.draft); // If no release found, fall back to allowing beta releases in.....
 
     if (!latestRelease) return log.info(`No release found for ${repo} - beta: ${beta}`);
-    
+
     const currentVersion = sanitizeVersion(latestRelease.tag_name);
     const name = latestRelease.name;
     const publishedAt = latestRelease.published_at;
     const url = latestRelease.html_url;
     const releaseBody = latestRelease.body || "No release notes.";
-    
+
     const lastVersion = db.data.releases[repo];
     if (!lastVersion) {
         log.debug(`No previous release found for ${repo} in database. creating entry and skipping notification`);
-        
+
         await updateVersion(repo, currentVersion);
 
         return;
@@ -170,21 +171,25 @@ const processRepoLine = async (line) => {
         log.info(`New release found for ${repo} - repo: ${repo}`);
 
         await updateVersion(repo, currentVersion)
-    
+
         const title = 'New version available!';
-        const message = [
+        const headers = emojify([
             `**${name}**`,
             `Repo: [${repo}](${url})`,
             `Version: ${currentVersion}`,
             `Published: ${new Date(publishedAt).toLocaleString()}`,
             '',
-            trunkateReleaseBody(releaseBody, url, 4000)
-        ].join('\n');
-    
+            ''
+        ].join('\n'));
+
+        const maxBodyBytes = MAX_MESSAGE_BYTES - Buffer.byteLength(headers, 'utf8');
+
+        const message = headers + trunkateReleaseBody(emojify(releaseBody), url, maxBodyBytes);
+
         await sendNtfy(title, 'loudspeaker', message);
     } else if (compareResult === 1) {
         log.info(`Version downgrade on remote repository ${repo} from ${lastVersion} to ${currentVersion}. Updating local database to reflect`);
-        
+
         await updateVersion(repo, currentVersion)
     } else {
         return log.debug(`Found no increase in version from ${lastVersion} to ${currentVersion} for ${repo}`);
