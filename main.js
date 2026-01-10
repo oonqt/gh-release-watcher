@@ -56,9 +56,9 @@ const loadRepoLines = (file) => {
 const parseLine = (line) => {
     if (line.startsWith('#')) return { repo: null, beta: false };
 
-    const parts = line.split(':').map(part => part.trim());
+    const parts = line.split(':').map(part => part.trim().toLowerCase());
     const repo = parts[0];
-    const beta = (parts[1] || '').toLowerCase() === 'beta';
+    const beta = (parts[1] || '') === 'beta';
 
     return { repo, beta }
 }
@@ -172,7 +172,7 @@ const processRepoLine = async (line) => {
 
         await updateVersion(repo, currentVersion)
 
-        const title = 'New version available!';
+        const title = `New release available for ${repo.split('/')[1]}!`;
         const headers = emojify([
             `**${name}**`,
             `Repo: [${repo}](${url})`,
