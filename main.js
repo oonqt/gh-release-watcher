@@ -79,7 +79,7 @@ const fetchReleases = async (repo) => {
 }
 
 const sendNtfy = async (title, tag, message) => {
-    await axios.post(NTFY_URL, githubMarkdown(message), {
+    await axios.post(NTFY_URL, message, {
         headers: {
             "Title": title,
             "Tags": tag,
@@ -95,11 +95,23 @@ const sanitizeVersion = version => {
 }
 
 const githubMarkdown = (text, repo) => {
+    const [owner, repoName] = repo.split('/');
+    
     // Convert to Github issue/pull requests to #links
     text = text.replace(
         /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(issues|pull)\/(\d+)/g,
         (_, owner, repo, type, num) => `[#${num}](https://github.com/${owner}/${repo}/${type}/${num})`
     );
+
+    // 2) Replace "Issue: #1185" or just "#1185"
+    text = text.replace(
+        /(^|[^\w/\[])(?:(issue)\s*:\s*)?#(\d+)\b(?!\]\()/gi,
+        (match, prefix, issueWord, num) => {
+            const issuePrefix = issueWord ? `${issueWord}: ` : "";
+            return `${prefix}${issuePrefix}[#${num}](https://github.com/${owner}/${repoName}/issues/${num})`;
+        }
+    );
+
     // Convert @user mentions to Github user links
     text = text.replace(
         /(^|\s)@([a-zA-Z0-9-]+)\b/g,
@@ -184,7 +196,7 @@ const processRepoLine = async (line) => {
 
         const maxBodyBytes = MAX_MESSAGE_BYTES - Buffer.byteLength(headers, 'utf8');
 
-        const message = headers + trunkateReleaseBody(emojify(releaseBody), url, maxBodyBytes);
+        const message = headers + trunkateReleaseBody(githubMarkdown(releaseBody, repo), url, maxBodyBytes);
 
         await sendNtfy(title, 'loudspeaker', message);
     } else if (compareResult === 1) {
