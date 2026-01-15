@@ -89,11 +89,6 @@ const sendNtfy = async (title, tag, message) => {
     });
 }
 
-const sanitizeVersion = version => {
-    const match = version.match(/(\d+(?:\.\d+)+)/);
-    return match ? `v${match[0]}` : '';
-}
-
 const githubMarkdown = (text, repo) => {
     const [owner, repoName] = repo.split('/');
     
@@ -140,6 +135,22 @@ const trunkateReleaseBody = (body, url, maxBytes) => {
     }
 }
 
+const extractVersion = (str = '') => {
+    const match = str.match(/v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/);
+    return match ? match[1] : null; // strip leading v by only capturing group 1
+};
+
+const sanitizeVersion = (tag, name) => {
+    const sources = [tag, name];
+
+    for (const src of sources) {
+        const version = extractVersion(src);
+        if (validate(version)) return version;   // e.g. "2.1.0-beta.2"
+    }
+
+    return null;
+};
+
 const processRepoLine = async (line) => {
     const { repo, beta } = parseLine(line);
 
@@ -160,7 +171,7 @@ const processRepoLine = async (line) => {
 
     if (!latestRelease) return log.info(`No release found for ${repo} - beta: ${beta}`);
 
-    const currentVersion = sanitizeVersion(latestRelease.tag_name);
+    const currentVersion = sanitizeVersion(latestRelease.tag_name, latestRelease.name);
     const name = latestRelease.name;
     const publishedAt = latestRelease.published_at;
     const url = latestRelease.html_url;
@@ -175,7 +186,7 @@ const processRepoLine = async (line) => {
         return;
     }
 
-    if (!validate(lastVersion) || !validate(currentVersion)) return log.error(`Unable to parse versions for ${repo}. ${lastVersion} - last version ${currentVersion} - current version`);
+    if (!validate(lastVersion) || !currentVersion) return log.error(`Unable to parse versions for ${repo}. ${lastVersion} - last version ${currentVersion} - current version`);
 
     const compareResult = compareVersions(lastVersion, currentVersion);
     // -1 indicates the "v2" release is greater than "v1"
